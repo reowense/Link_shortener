@@ -64,14 +64,27 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, codeUrl)
 }
 
+func redirectHandler(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+	value, ok := store[code]
+	if !ok {
+		http.Error(w, "Не найдено", http.StatusNotFound)
+		return
+	}
+
+	http.Redirect(w, r, value, http.StatusFound)
+
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "ok")
 }
 
 func main() {
 
-	http.HandleFunc("/health", healthHandler)
-	http.HandleFunc("/shorten", shortenHandler)
+	http.HandleFunc("GET /{code}", redirectHandler)
+	http.HandleFunc("GET /health", healthHandler)
+	http.HandleFunc("POST /shorten", shortenHandler)
 
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
