@@ -2,11 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
 	"strings"
+)
+
+var (
+	ErrInvalidURL        = errors.New("не валидный URL")
+	ErrUnsupportedScheme = errors.New("неподдерживаемая схема, разрешены только http и https")
+	ErrInvalidHost       = errors.New("хост пуст")
 )
 
 var store = map[string]string{}
@@ -29,9 +37,27 @@ func generatorCode() string {
 	return string(result)
 }
 
+func validateInputURL(urlRaw string) error {
+	parsedURL, err := url.ParseRequestURI(urlRaw)
+
+	if err != nil {
+		return ErrInvalidURL
+	}
+
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return ErrUnsupportedScheme
+	}
+
+	if parsedURL.Host == "" {
+		return ErrInvalidHost
+	}
+
+	return nil
+}
+
 func shortenHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		http.Error(w, "метод не поддерживается", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -39,7 +65,7 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(w, "Некорректный JSON: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "некорректный JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -47,6 +73,13 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 
 	if req.Url == "" {
 		http.Error(w, "URL пуст", http.StatusBadRequest)
+		return
+	}
+
+	err = validateInputURL(req.Url)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -68,7 +101,7 @@ func redirectHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
 	value, ok := store[code]
 	if !ok {
-		http.Error(w, "Не найдено", http.StatusNotFound)
+		http.Error(w, "не найдено", http.StatusNotFound)
 		return
 	}
 
