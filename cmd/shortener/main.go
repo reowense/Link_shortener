@@ -19,7 +19,10 @@ var (
 
 var store = map[string]string{}
 
-const length = 8
+const (
+	length   = 8
+	maxBytes = 64 * 64
+)
 
 type URL struct {
 	Url string `json:"url"`
@@ -56,15 +59,18 @@ func validateInputURL(urlRaw string) error {
 }
 
 func shortenHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "метод не поддерживается", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req URL
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+
 	err := json.NewDecoder(r.Body).Decode(&req)
+
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "размер файла превышает лимит", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "некорректный JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
