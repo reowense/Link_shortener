@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 var (
@@ -17,15 +18,48 @@ var (
 	ErrInvalidHost       = errors.New("хост пуст")
 )
 
-var store = map[string]string{}
-
 const (
 	length   = 8
-	maxBytes = 64 * 64
+	maxBytes = 4 * 1024
 )
 
 type URL struct {
 	Url string `json:"url"`
+}
+
+type Storage struct {
+	mu    sync.RWMutex
+	links map[string]string
+}
+
+func NewStorage() *Storage {
+	return &Storage{links: make(map[string]string)}
+}
+
+func (s *Storage) Get(code string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	value, ok := s.links[code]
+	if !ok {
+		return "", false
+	}
+
+	return value, true
+}
+
+func (s *Storage) Save(url string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	codeUrl := generatorCode()
+
+	_, ok := s.links[codeUrl]
+	for ok {
+		codeUrl = generatorCode()
+		_, ok = s.links[codeUrl]
+	}
+
+	s.links[codeUrl] = url
+	return codeUrl
 }
 
 func generatorCode() string {
@@ -58,7 +92,7 @@ func validateInputURL(urlRaw string) error {
 	return nil
 }
 
-func shortenHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Storage) shortenHandler(w http.ResponseWriter, r *http.Request) {
 	var req URL
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
@@ -89,30 +123,22 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	codeUrl := generatorCode()
-	_, ok := store[codeUrl]
-
-	for ok {
-		codeUrl = generatorCode()
-		_, ok = store[codeUrl]
-	}
-
-	store[codeUrl] = req.Url
+	codeUrl := s.Save(req.Url)
 	w.WriteHeader(http.StatusCreated)
 
 	fmt.Fprint(w, codeUrl)
 }
 
-func redirectHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Storage) redirectHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.PathValue("code")
-	value, ok := store[code]
+
+	value, ok := s.Get(code)
 	if !ok {
 		http.Error(w, "не найдено", http.StatusNotFound)
 		return
 	}
 
 	http.Redirect(w, r, value, http.StatusFound)
-
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -120,10 +146,10 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-
-	http.HandleFunc("GET /{code}", redirectHandler)
+	storage := NewStorage()
+	http.HandleFunc("GET /{code}", storage.redirectHandler)
 	http.HandleFunc("GET /health", healthHandler)
-	http.HandleFunc("POST /shorten", shortenHandler)
+	http.HandleFunc("POST /shorten", storage.shortenHandler)
 
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
