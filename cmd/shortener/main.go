@@ -40,14 +40,11 @@ func (s *Storage) Get(code string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	value, ok := s.links[code]
-	if !ok {
-		return "", false
-	}
 
-	return value, true
+	return value, ok
 }
 
-func (s *Storage) Save(url string) string {
+func (s *Storage) Save(link string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	codeUrl := generatorCode()
@@ -58,7 +55,7 @@ func (s *Storage) Save(url string) string {
 		_, ok = s.links[codeUrl]
 	}
 
-	s.links[codeUrl] = url
+	s.links[codeUrl] = link
 	return codeUrl
 }
 
