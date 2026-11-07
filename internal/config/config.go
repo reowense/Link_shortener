@@ -1,22 +1,22 @@
 package config
 
 import (
- "os"
+	"os"
 )
 
 type Configuration struct {
- Port string
+	Port string
 }
 
 func NewConfig() Configuration {
- newConf := os.Getenv("PORT")
- if newConf == "" {
-  return Configuration{
-   Port: ":8080",
-  }
- }
+	newConf := os.Getenv("PORT")
+	if newConf == "" {
+		return Configuration{
+			Port: ":8080",
+		}
+	}
 
- return Configuration{
-  Port: newConf,
- }
+	return Configuration{
+		Port: newConf,
+	}
 }

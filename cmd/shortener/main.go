@@ -1,34 +1,43 @@
 package main
 
 import (
- "github.com/reowense/Link_shortener/internal/config"
- "github.com/reowense/Link_shortener/internal/handler"
- "github.com/reowense/Link_shortener/internal/storage"
- "log"
- "net/http"
- "time"
+	"log/slog"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/reowense/Link_shortener/internal/config"
+	"github.com/reowense/Link_shortener/internal/handler"
+	"github.com/reowense/Link_shortener/internal/storage"
 )
 
 func main() {
- cfg := config.NewConfig()
- store := storage.NewMemory()
- h := handler.New(store)
+	jsonLog := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(jsonLog)
 
- mux := http.NewServeMux()
- h.Register(mux)
+	cfg := config.NewConfig()
+	store := storage.NewMemory()
+	h := handler.New(store)
 
- newServer := http.Server{
-  Addr:              ":" + cfg.Port,
-  Handler:           mux,
-  ReadHeaderTimeout: 5 * time.Second,
-  ReadTimeout:       10 * time.Second,
-  WriteTimeout:      10 * time.Second,
-  IdleTimeout:       60 * time.Second,
- }
+	mux := http.NewServeMux()
+	h.Register(mux)
 
- err := newServer.ListenAndServe()
+	newServer := http.Server{
+		Addr:              cfg.Port,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	slog.Info("Успешный старт",
+		"PORT",
+		cfg.Port)
 
- if err != nil {
-  log.Fatal("ListenAndServe: ", err)
- }
+	err := newServer.ListenAndServe()
+
+	if err != nil {
+		slog.Error("Сервер не поднят", "error", err)
+		os.Exit(1)
+	}
 }
