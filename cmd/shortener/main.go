@@ -8,6 +8,7 @@ import (
 
 	"github.com/reowense/Link_shortener/internal/config"
 	"github.com/reowense/Link_shortener/internal/handler"
+	"github.com/reowense/Link_shortener/internal/middleware"
 	"github.com/reowense/Link_shortener/internal/storage"
 )
 
@@ -24,7 +25,7 @@ func main() {
 
 	newServer := http.Server{
 		Addr:              cfg.Port,
-		Handler:           mux,
+		Handler:           middleware.Logging(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
