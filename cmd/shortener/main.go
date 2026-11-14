@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/reowense/Link_shortener/internal/config"
@@ -35,10 +39,28 @@ func main() {
 		"PORT",
 		cfg.Port)
 
-	err := newServer.ListenAndServe()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
+	go func() {
+
+		err := newServer.ListenAndServe()
+		if !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("Сервер не поднят", "error", err)
+			os.Exit(1)
+		}
+
+	}()
+	<-ctx.Done()
+	slog.Info("Получен сигнал остановки сервера")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := newServer.Shutdown(shutdownCtx)
 	if err != nil {
-		slog.Error("Сервер не поднят", "error", err)
-		os.Exit(1)
+		slog.Error("Ошибка в остановке сервера", "error", err)
 	}
+
+	slog.Info("Сервер остановлен")
 }
